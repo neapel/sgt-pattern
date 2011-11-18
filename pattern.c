@@ -1,0 +1,1 @@
+/home/pascal/usr/src/sgt-puzzles/pattern.c
