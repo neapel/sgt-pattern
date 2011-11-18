@@ -36,6 +36,19 @@ Array::fill = (value) ->
 		this[index] = value
 	null
 
+# Get median of 2D array
+Array::median = ->
+	temp = []
+	for line in this
+		for x in line
+			temp.push x
+	temp.sort()
+	temp[0|(temp.length / 2)]
+
+# Get one column of 2D array
+Array::column = (x) ->
+	for row in this
+		row[x]
 
 point_angle = (ox, oy, dx, dy) ->
 	xdiff = Math.abs(ox - dx)
