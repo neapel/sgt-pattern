@@ -95,6 +95,30 @@ class GameState
 				d
 		r
 
+	execute_move: (val, x1, y1, x2, y2) ->
+		return null unless x1 >= 0 and x2 >= 0 and x1 + x2 <= @w
+		return null unless y1 >= 0 and y2 >= 0 and y1 + y2 <= @h
+		x2 += x1
+		y2 += y1
+		ret = @clone()
+		for y in [y1 .. y2 - 1] by 1
+			for x in [x1 .. x2 - 1] by 1
+				ret.grid[y][x].v = val
+		# An actual change, so check to see if we've completed the game
+		if not ret.completed
+			ret.completed = true
+			for x in [0 .. ret.w - 1]
+				rowdata = compute_rowdata(ret.grid.column(x))
+				if not rowdata? or not ret.rowdata[x].equals(rowdata)
+					ret.completed = false
+					break
+			for y in [0 .. ret.h - 1]
+				rowdata = compute_rowdata(ret.grid[y])
+				if not rowdata? or not ret.rowdata[y + ret.w].equals(rowdata)
+					ret.completed = false
+					break
+		ret
+
 # ----------------------------------------------------------------------
 # Puzzle generation code.
 # 
@@ -196,58 +220,52 @@ compute_rowdata = (run) ->
 		ret.push(current)
 	ret
 
-
-do_recurse = (known, deduced, row, data, freespace, ndone = 0, lowest = 0) ->
-	run_length = data[ndone]
-	if run_length
-		for i in [0 .. freespace]
-			j = lowest
-			for k in [0 .. i - 1] by 1
-				row[j++].v = DOT
-			for k in [0 .. run_length - 1] by 1
-				row[j++].v = BLOCK
-			if j < row.length
-				row[j++].v = DOT
-			do_recurse(known, deduced, row, data, freespace - i, ndone + 1, j)
-	else
-		for i in [lowest .. row.length - 1] by 1
-			row[i].v = DOT
-		for i in [0 .. row.length - 1]
-			if known[i].v and known[i].v != row[i].v
-				return
-		for i in [0 .. row.length - 1]
-			deduced[i].v |= row[i].v
-	null
-
+# Solve one row or column
 do_row = (start, data) ->
-	known =
-		for x in start
-			x
-	deduced =
-		for x in start
-			new Cell(0)
-
+	# Things we have deduced so far.
+	deduced = (0 for x in start)
+	# The row to be operated on: initially empty
+	row = (0 for x in start)
+	# Recursive function
+	do_recurse = (freespace, ndone = 0, lowest = 0) ->
+		run_length = data[ndone]
+		if run_length
+			for i in [0 .. freespace]
+				j = lowest
+				for k in [0 .. i - 1] by 1
+					row[j++] = DOT
+				for k in [0 .. run_length - 1] by 1
+					row[j++] = BLOCK
+				if j < row.length
+					row[j++] = DOT
+				do_recurse(freespace - i, ndone + 1, j)
+		else
+			for i in [lowest .. row.length - 1] by 1
+				row[i] = DOT
+			for i in [0 .. row.length - 1]
+				if start[i].v and start[i].v != row[i]
+					return
+			for i in [0 .. row.length - 1]
+				deduced[i] |= row[i]
+		null
+	# Free space to fill
 	freespace = start.length + 1
 	for d in data
 		freespace -= d + 1
-
-	row =
-		for x in start
-			new Cell(0)
-	do_recurse(known, deduced, row, data, freespace)
+	# Check all possible ways to fill
+	do_recurse(freespace)
+	# Deduce things from this
 	done_any = false
 	for i in [0 .. start.length - 1]
-		if deduced[i] and deduced[i] != STILL_UNKNOWN and not known[i].v
-			start[i] = deduced[i]
+		if deduced[i] and deduced[i] != STILL_UNKNOWN and not start[i].v
+			start[i].v = deduced[i]
 			done_any = true
 	done_any
 
 generate_soluble = (w, h) ->
 	ok = false
 	while not ok
-		console.log 'generate_new'
 		grid = generate(w, h)
-
 		# The game is a bit too easy if any row or column is
 		# completely black or completely white. An exception is
 		# made for rows/columns that are under 3 squares,
@@ -267,14 +285,12 @@ generate_soluble = (w, h) ->
 					colours |= if grid[i][j].v == GRID_FULL then 2 else 1
 				if colours != 3
 					ok = false
-		console.log 'too easy?', ok
 		continue if not ok
-
+		# Solve game a bit
 		matrix =
-			for y in [0 .. h - 1]
-				for x in [0 .. w - 10]
+			for row in grid
+				for cell in row
 					new Cell(0)
-
 		done_any = true
 		while done_any
 			done_any = false
@@ -300,18 +316,6 @@ class game_ui
 		@drag_start_x = @drag_start_y = 0
 		@drag_end_x = @drag_end_y = 0
 		@drag = @release = @state = null
-
-class game_drawstate
-	constructor: (state) ->
-		@started = false
-		@w = state.w
-		@h = state.h
-		@visible =
-			for y in [0 .. @h - 1]
-				for x in [0 .. @w - 1]
-					255
-		@tilesize = 0
-		@cur_x = @cur_y = 0
 
 interpret_move = (state, ui, ds, x, y, button) ->
 	x = FROMCOORD(state.w, x)
@@ -408,111 +412,84 @@ interpret_move = (state, ui, ds, x, y, button) ->
 	else
 		null
 
-execute_move = (from, move) ->
-	[val, x1, y1, x2, y2] = move
-	return null unless x1 >= 0 and x2 >= 0 and x1 + x2 <= from.w
-	return null unless y1 >= 0 and y2 >= 0 and y1 + y2 <= from.h
-	x2 += x1
-	y2 += y1
-	ret = from.clone()
-	for y in [y1 .. y2 - 1] by 1
-		for x in [x1 .. x2 - 1] by 1
-			ret.grid[y][x].v = val
-	# An actual change, so check to see if we've completed the game
-	if not ret.completed
-		ret.completed = true
-		for x in [0 .. ret.w - 1]
-			rowdata = compute_rowdata(ret.grid.column(x))
-			if not rowdata? or not ret.rowdata[x].equals(rowdata)
-				ret.completed = false
-				break
-		for y in [0 .. ret.h - 1]
-			rowdata = compute_rowdata(ret.grid[y])
-			if not rowdata? or not ret.rowdata[y + ret.w].equals(rowdata)
-				ret.completed = false
-				break
-	ret
+
 
 # ----------------------------------------------------------------------
 # Drawing routines.
 
-grid_square = (dr, ds, y, x, state, cur) ->
-	dr.fillStyle = COL_GRID
-	dr.fillRect(TOCOORD(ds.w, x), TOCOORD(ds.h, y), TILE_SIZE, TILE_SIZE)
-	xl = if 0|(x % 5) == 0 then 1 else 0
-	yt = if 0|(y % 5) == 0 then 1 else 0
-	xr = if 0|(x % 5) == 4 or x == ds.w - 1 then 1 else 0
-	yb = if 0|(y % 5) == 4 or y == ds.h - 1 then 1 else 0
-	dx = TOCOORD(ds.w, x) + 1 + xl
-	dy = TOCOORD(ds.h, y) + 1 + yt
-	dw = TILE_SIZE - xl - xr - 1
-	dh = TILE_SIZE - yt - yb - 1
-	dr.fillStyle =
-		if state == GRID_FULL
-			COL_FULL
-		else if state == GRID_EMPTY
-			COL_EMPTY
-		else
-			COL_UNKNOWN
-	dr.fillRect(dx, dy, dw, dh)
-	if cur
-		dr.strokeStyle = COL_CURSOR
-		dr.strokeRect(dx, dy, dw, dh)
+class game_drawstate
+	constructor: (@dr) ->
+		null
 
-draw_numbers = (dr, ds, state) ->
-	# Draw the numbers.
-	for rowdata, i in state.rowdata
-		# Normally I space the numbers out by the same
-		# distance as the tile size. However, if there are
-		# more numbers than available spaces, I have to squash
-		# them up a bit.
-		nfit = Math.max(rowdata.length, TLBORDER(state.h)) - 1
-		for run_length, j in rowdata
-			if i < state.w
-				x = TOCOORD(state.w, i)
-				y = BORDER + TILE_SIZE * (TLBORDER(state.h) - 1)
-				y -= ((rowdata.length-j-1)*TILE_SIZE) * (TLBORDER(state.h)-1) / nfit
-			else
-				y = TOCOORD(state.h, i - state.w)
-				x = BORDER + TILE_SIZE * (TLBORDER(state.w) - 1)
-				x -= ((rowdata.length-j-1)*TILE_SIZE) * (TLBORDER(state.h)-1) / nfit
-			dr.fillStyle = COL_TEXT
-			dr.fillText("#{run_length}", x + TILE_SIZE/2, y + TILE_SIZE/2)
-
-game_redraw = (dr, ds, state, ui) ->
-	# The initial contents of the window are not guaranteed
-	# and can vary with front ends. To be on the safe side,
-	# all games should start by drawing a big background-
-	# colour rectangle covering the whole window.
-	dr.fillStyle = COL_BACKGROUND
-	dr.fillRect(0, 0, SIZE(ds.w), SIZE(ds.h))
-	draw_numbers(dr, ds, state)
-	dr.strokeStyle = COL_GRID
-	dr.strokeRect(TOCOORD(ds.w, 0) - 1, TOCOORD(ds.h, 0) - 1, ds.w * TILE_SIZE + 3, ds.h * TILE_SIZE + 3)
-	# Dynamic things
-	if ui.dragging
-		x1 = Math.min(ui.drag_start_x, ui.drag_end_x)
-		x2 = Math.max(ui.drag_start_x, ui.drag_end_x)
-		y1 = Math.min(ui.drag_start_y, ui.drag_end_y)
-		y2 = Math.max(ui.drag_start_y, ui.drag_end_y)
-	if ui.cur_visible
-		cx = ui.cur_x
-		cy = ui.cur_y
-	else
-		cx = cy = -1
-	# Draw everything.
-	for i in [0 .. ds.h - 1]
-		for j in [0 .. ds.w - 1]
-			# Work out what state this square should be drawn in,
-			# taking any current drag operation into account.
-			val =
-				if ui.dragging and x1 <= j and j <= x2 and y1 <= i and i <= y2
-					ui.state
+	game_redraw: (state, ui) ->
+		# The initial contents of the window are not guaranteed
+		# and can vary with front ends. To be on the safe side,
+		# all games should start by drawing a big background-
+		# colour rectangle covering the whole window.
+		@dr.fillStyle = COL_BACKGROUND
+		@dr.fillRect(0, 0, SIZE(state.w), SIZE(state.h))
+		# Draw the numbers.
+		for rowdata, i in state.rowdata
+			# Normally I space the numbers out by the same
+			# distance as the tile size. However, if there are
+			# more numbers than available spaces, I have to squash
+			# them up a bit.
+			nfit = Math.max(rowdata.length, TLBORDER(state.h)) - 1
+			for run_length, j in rowdata
+				if i < state.w
+					x = TOCOORD(state.w, i)
+					y = BORDER + TILE_SIZE * (TLBORDER(state.h) - 1)
+					y -= ((rowdata.length-j-1)*TILE_SIZE) * (TLBORDER(state.h)-1) / nfit
 				else
-					state.grid[i][j].v
-			grid_square(dr, ds, i, j, val, (j == cx && i == cy))
-	ds.cur_x = cx
-	ds.cur_y = cy
+					y = TOCOORD(state.h, i - state.w)
+					x = BORDER + TILE_SIZE * (TLBORDER(state.w) - 1)
+					x -= ((rowdata.length-j-1)*TILE_SIZE) * (TLBORDER(state.h)-1) / nfit
+				@dr.fillStyle = COL_TEXT
+				@dr.fillText("#{run_length}", x + TILE_SIZE/2, y + TILE_SIZE/2)
+		@dr.strokeStyle = COL_GRID
+		@dr.strokeRect(TOCOORD(state.w, 0) - 1, TOCOORD(state.h, 0) - 1, state.w * TILE_SIZE + 3, state.h * TILE_SIZE + 3)
+		# Dynamic things
+		if ui.dragging
+			x1 = Math.min(ui.drag_start_x, ui.drag_end_x)
+			x2 = Math.max(ui.drag_start_x, ui.drag_end_x)
+			y1 = Math.min(ui.drag_start_y, ui.drag_end_y)
+			y2 = Math.max(ui.drag_start_y, ui.drag_end_y)
+		if ui.cur_visible
+			cx = ui.cur_x
+			cy = ui.cur_y
+		else
+			cx = cy = -1
+		# Draw everything.
+		for y in [0 .. state.h - 1]
+			for x in [0 .. state.w - 1]
+				# Work out what state this square should be drawn in,
+				# taking any current drag operation into account.
+				val =
+					if ui.dragging and x1 <= x and x <= x2 and y1 <= y and y <= y2
+						ui.state
+					else
+						state.grid[y][x].v
+				@dr.fillStyle = COL_GRID
+				@dr.fillRect(TOCOORD(state.w, x), TOCOORD(state.h, y), TILE_SIZE, TILE_SIZE)
+				xl = if 0|(x % 5) == 0 then 1 else 0
+				yt = if 0|(y % 5) == 0 then 1 else 0
+				xr = if 0|(x % 5) == 4 or x == state.w - 1 then 1 else 0
+				yb = if 0|(y % 5) == 4 or y == state.h - 1 then 1 else 0
+				dx = TOCOORD(state.w, x) + 1 + xl
+				dy = TOCOORD(state.h, y) + 1 + yt
+				dw = TILE_SIZE - xl - xr - 1
+				dh = TILE_SIZE - yt - yb - 1
+				@dr.fillStyle =
+					if val == GRID_FULL
+						COL_FULL
+					else if val == GRID_EMPTY
+						COL_EMPTY
+					else
+						COL_UNKNOWN
+				@dr.fillRect(dx, dy, dw, dh)
+				if x == cx and y == cy
+					@dr.strokeStyle = COL_CURSOR
+					@dr.strokeRect(dx, dy, dw, dh)
 
 window.onload = ->
 	canvas = document.createElement 'canvas'
@@ -525,15 +502,15 @@ window.onload = ->
 	current_state = 0
 
 	ui = new game_ui()
-	ds = new game_drawstate(states[current_state])
+	ds = new game_drawstate(ctx, states[current_state])
 
 	draw = ->
-		game_redraw(ctx, ds, states[current_state], ui)
+		ds.game_redraw(states[current_state], ui)
 
 	make_move = (button, x, y) ->
 		mov = interpret_move(states[current_state], ui, ds, x, y, button)
 		if mov
-			new_state = execute_move(states[current_state], mov)
+			new_state = states[current_state].execute_move(mov...)
 			states = states[..current_state]
 			states.push(new_state)
 			current_state++
