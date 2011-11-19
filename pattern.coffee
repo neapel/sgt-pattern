@@ -1,11 +1,14 @@
 Math.seedrandom('foo')
 
 COL_BACKGROUND = '#eee'
-COL_EMPTY = '#fff'
-COL_FULL = '#000'
+
 COL_TEXT = '#000'
-COL_UNKNOWN = '#ccc'
-COL_GRID = '#888'
+COL_EMPTY = '#fff'
+COL_UNKNOWN = '#aaa'
+COL_FULL = '#000'
+COL_GRID = '#000'
+ALPHA_GRID = 0.2
+
 COL_CURSOR = 'yellow'
 
 UNKNOWN = 0
@@ -17,19 +20,6 @@ GRID_UNKNOWN = 2
 GRID_FULL = 1
 GRID_EMPTY = 0
 
-PREFERRED_TILE_SIZE = 24
-TILE_SIZE = 20
-BORDER = 0|(3 * TILE_SIZE / 4)
-TLBORDER = (d) -> 0|(d / 5 + 2)
-GUTTER = 0|(TILE_SIZE / 2)
-FROMCOORD = (d, x) -> 
-	0|((x - (BORDER + GUTTER + TILE_SIZE/2 + TILE_SIZE * TLBORDER(d))) / TILE_SIZE)
-SIZE = (d) ->
-	2 * BORDER + GUTTER + TILE_SIZE * (TLBORDER(d) + d)
-GETTILESIZE = (d, w) ->
-	0|(w / (2.0 + TLBORDER(d) + d))
-TOCOORD = (d, x) ->
-	BORDER + GUTTER + TILE_SIZE * (TLBORDER(d) + x)
 
 
 LEFT_BUTTON = 1
@@ -183,7 +173,7 @@ generate = (w, h) ->
 					n = 0
 					sx = 0.0
 					for dy in [-1 .. +1] when 0 <= y + dy < h
-						for dx in [-1 .. +1] when 0 <= x + dx < h
+						for dx in [-1 .. +1] when 0 <= x + dx < w
 							# An additional special case not mentioned
 							# above: if a grid dimension is 2xn then
 							# we do not average across that dimension
@@ -270,22 +260,22 @@ generate_soluble = (w, h) ->
 		# completely black or completely white. An exception is
 		# made for rows/columns that are under 3 squares,
 		# otherwise nothing will ever be successfully generated.
-		ok = true
-		if w > 2
-			for i in [0 .. h - 1]
-				colours = 0
-				for j in [0 .. w - 1]
-					colours |= if grid[i][j].v == GRID_FULL then 2 else 1
-				if colours != 3
-					ok = false
-		if h > 2
-			for j in [0 .. w - 1]
-				colours = 0
-				for i in [0 .. h - 1]
-					colours |= if grid[i][j].v == GRID_FULL then 2 else 1
-				if colours != 3
-					ok = false
-		continue if not ok
+		again = do ->
+			if w > 2
+				for row in grid
+					colours = 0
+					for cell in row
+						colours |= if cell.v == GRID_FULL then 2 else 1
+					if colours != 3
+						return true
+			if h > 2
+				for x in [0 .. w - 1]
+					colours = 0
+					for cell in grid.column(x)
+						colours |= if cell.v == GRID_FULL then 2 else 1
+					if colours != 3
+						return true
+		continue if again
 		# Solve game a bit
 		matrix =
 			for row in grid
@@ -294,12 +284,12 @@ generate_soluble = (w, h) ->
 		done_any = true
 		while done_any
 			done_any = false
-			for i in [0 .. h - 1]
-				rowdata = compute_rowdata(grid[i])
-				done_any |= do_row(matrix[i], rowdata)
-			for i in [0 .. w - 1]
-				rowdata = compute_rowdata(grid.column(i))
-				done_any |= do_row(matrix.column(i), rowdata)
+			for y in [0 .. h - 1]
+				rowdata = compute_rowdata(grid[y])
+				done_any |= do_row(matrix[y], rowdata)
+			for x in [0 .. w - 1]
+				rowdata = compute_rowdata(grid.column(x))
+				done_any |= do_row(matrix.column(x), rowdata)
 		console.log matrix, grid
 		ok = true
 		for row in matrix
@@ -318,9 +308,11 @@ class game_ui
 		@drag = @release = @state = null
 
 interpret_move = (state, ui, ds, x, y, button) ->
-	x = FROMCOORD(state.w, x)
-	y = FROMCOORD(state.h, y)
-	if x >= 0 and x < state.w and y >= 0 and y < state.h and (button == LEFT_BUTTON or button == RIGHT_BUTTON or button == MIDDLE_BUTTON)
+	[x, y] = ds.cell_at(x, y)
+	x = Math.min(state.w - 1, Math.max(0, x))
+	y = Math.min(state.h - 1, Math.max(0, y))
+
+	if button == LEFT_BUTTON or button == RIGHT_BUTTON or button == MIDDLE_BUTTON
 		ui.dragging = true
 		if button == LEFT_BUTTON
 			ui.drag = LEFT_DRAG
@@ -421,33 +413,45 @@ class game_drawstate
 	constructor: (@dr) ->
 		null
 
+	cell_at: (mx, my) ->
+		[
+			0|((mx - @TILE_SIZE/2) / @TILE_SIZE) - @offset_x
+			0|((my - @TILE_SIZE/2) / @TILE_SIZE) - @offset_y
+		]
+
 	game_redraw: (state, ui) ->
-		# The initial contents of the window are not guaranteed
-		# and can vary with front ends. To be on the safe side,
-		# all games should start by drawing a big background-
-		# colour rectangle covering the whole window.
-		@dr.fillStyle = COL_BACKGROUND
-		@dr.fillRect(0, 0, SIZE(state.w), SIZE(state.h))
+		longest_coldata = 0
+		for x in [0 .. state.w - 1]
+			longest_coldata = Math.max(longest_coldata, state.rowdata[x].length)
+		longest_rowdata = 0
+		for y in [0 .. state.h - 1]
+			longest_rowdata = Math.max(longest_rowdata, state.rowdata[y + state.w].length)
+		@offset_x = longest_rowdata
+		@offset_y = longest_coldata
+		total_w = longest_rowdata + state.w
+		total_h = longest_coldata + state.h
+		@TILE_SIZE = Math.min(
+			0|(@dr.canvas.width / total_w),
+			0|(@dr.canvas.height / total_h)
+		)
+
+		@dr.canvas.width = @dr.canvas.width
+		@dr.save()
+		@dr.translate(@offset_x * @TILE_SIZE, @offset_y * @TILE_SIZE)
 		# Draw the numbers.
 		for rowdata, i in state.rowdata
-			# Normally I space the numbers out by the same
-			# distance as the tile size. However, if there are
-			# more numbers than available spaces, I have to squash
-			# them up a bit.
-			nfit = Math.max(rowdata.length, TLBORDER(state.h)) - 1
 			for run_length, j in rowdata
-				if i < state.w
-					x = TOCOORD(state.w, i)
-					y = BORDER + TILE_SIZE * (TLBORDER(state.h) - 1)
-					y -= ((rowdata.length-j-1)*TILE_SIZE) * (TLBORDER(state.h)-1) / nfit
-				else
-					y = TOCOORD(state.h, i - state.w)
-					x = BORDER + TILE_SIZE * (TLBORDER(state.w) - 1)
-					x -= ((rowdata.length-j-1)*TILE_SIZE) * (TLBORDER(state.h)-1) / nfit
+				if i < state.w # col
+					x = (i ) * @TILE_SIZE
+					y = (j - rowdata.length) * @TILE_SIZE
+				else # row
+					x = (j - rowdata.length) * @TILE_SIZE
+					y = (i - state.w) * @TILE_SIZE
 				@dr.fillStyle = COL_TEXT
-				@dr.fillText("#{run_length}", x + TILE_SIZE/2, y + TILE_SIZE/2)
-		@dr.strokeStyle = COL_GRID
-		@dr.strokeRect(TOCOORD(state.w, 0) - 1, TOCOORD(state.h, 0) - 1, state.w * TILE_SIZE + 3, state.h * TILE_SIZE + 3)
+				@dr.font = "bold #{@TILE_SIZE/2}px sans-serif"
+				@dr.textAlign = 'center'
+				@dr.textBaseline = 'middle'
+				@dr.fillText("#{run_length}", x + @TILE_SIZE/2, y + @TILE_SIZE/2)
 		# Dynamic things
 		if ui.dragging
 			x1 = Math.min(ui.drag_start_x, ui.drag_end_x)
@@ -465,20 +469,18 @@ class game_drawstate
 				# Work out what state this square should be drawn in,
 				# taking any current drag operation into account.
 				val =
-					if ui.dragging and x1 <= x and x <= x2 and y1 <= y and y <= y2
+					if ui.dragging and x1 <= x <= x2 and y1 <= y <= y2
 						ui.state
 					else
 						state.grid[y][x].v
-				@dr.fillStyle = COL_GRID
-				@dr.fillRect(TOCOORD(state.w, x), TOCOORD(state.h, y), TILE_SIZE, TILE_SIZE)
-				xl = if 0|(x % 5) == 0 then 1 else 0
-				yt = if 0|(y % 5) == 0 then 1 else 0
-				xr = if 0|(x % 5) == 4 or x == state.w - 1 then 1 else 0
-				yb = if 0|(y % 5) == 4 or y == state.h - 1 then 1 else 0
-				dx = TOCOORD(state.w, x) + 1 + xl
-				dy = TOCOORD(state.h, y) + 1 + yt
-				dw = TILE_SIZE - xl - xr - 1
-				dh = TILE_SIZE - yt - yb - 1
+				xl = +(0|(x % 5) == 0)
+				yt = +(0|(y % 5) == 0)
+				xr = +(0|(x % 5) == 4 or x == state.w - 1)
+				yb = +(0|(y % 5) == 4 or y == state.h - 1)
+				dx = x * @TILE_SIZE + 1 + xl
+				dy = y * @TILE_SIZE + 1 + yt
+				dw = @TILE_SIZE - xl - xr - 1
+				dh = @TILE_SIZE - yt - yb - 1
 				@dr.fillStyle =
 					if val == GRID_FULL
 						COL_FULL
@@ -487,22 +489,31 @@ class game_drawstate
 					else
 						COL_UNKNOWN
 				@dr.fillRect(dx, dy, dw, dh)
+				@dr.save()
+				@dr.globalAlpha = ALPHA_GRID
+				@dr.strokeStyle = COL_GRID
+				@dr.lineWidth = 1
+				@dr.strokeRect(dx + 0.5, dy + 0.5, dw - 1, dh - 1)
+				@dr.restore()
 				if x == cx and y == cy
-					@dr.strokeStyle = COL_CURSOR
-					@dr.strokeRect(dx, dy, dw, dh)
+					@dr.fillStyle = COL_CURSOR
+					@dr.beginPath()
+					@dr.arc(dx + @TILE_SIZE/2 - 0.5, dy + @TILE_SIZE/2 - 0.5, @TILE_SIZE * 0.2, 0, Math.PI * 2, false)
+					@dr.fill()
+		@dr.restore()
 
 window.onload = ->
 	canvas = document.createElement 'canvas'
 	document.body.appendChild canvas
-	canvas.width = 300
-	canvas.height = 300
+	canvas.width = 500
+	canvas.height = 500
 	ctx = canvas.getContext '2d'
 
-	states = [new GameState(5, 5)]
+	states = [new GameState(15, 10)]
 	current_state = 0
 
 	ui = new game_ui()
-	ds = new game_drawstate(ctx, states[current_state])
+	ds = new game_drawstate(ctx)
 
 	draw = ->
 		ds.game_redraw(states[current_state], ui)
@@ -564,6 +575,8 @@ window.onload = ->
 		event.preventDefault()
 
 	mouse_is_down = false
+	x = y = 0
+
 	canvas.onmousedown = (event) ->
 		mouse_is_down = true
 		event.stopImmediatePropagation()
@@ -577,13 +590,8 @@ window.onload = ->
 				make_move(MIDDLE_BUTTON, x, y)
 			when 2
 				make_move(RIGHT_BUTTON, x, y)
-		
-	canvas.onmouseup = (event) ->
-		mouse_is_down = false
-		event.stopImmediatePropagation()
-		event.preventDefault()
-		x = event.clientX
-		y = event.clientY
+	
+	handle_mouseup = ->
 		switch event.button
 			when 0
 				make_move(LEFT_RELEASE, x, y)
@@ -591,6 +599,19 @@ window.onload = ->
 				make_move(MIDDLE_RELEASE, x, y)
 			when 2
 				make_move(RIGHT_RELEASE, x, y)
+
+	canvas.onmouseup = (event) ->
+		mouse_is_down = false
+		event.stopImmediatePropagation()
+		event.preventDefault()
+		x = event.clientX
+		y = event.clientY
+		handle_mouseup()
+
+	window.onmouseup = ->
+		mouse_is_down = false
+		console.log 'up'
+		handle_mouseup()
 
 	canvas.onmousemove = (event) ->
 		if mouse_is_down
