@@ -73,14 +73,10 @@ class GameState
 		r.coldata = @coldata
 		r
 
-	execute_move: (val, x1, y1, x2, y2) ->
-		return null unless x1 >= 0 and x2 >= 0 and x1 + x2 <= @w
-		return null unless y1 >= 0 and y2 >= 0 and y1 + y2 <= @h
-		x2 += x1
-		y2 += y1
+	execute_move: (val, x1, y1, x2 = x1, y2 = y1) ->
 		ret = @clone()
-		for y in [y1 .. y2 - 1] by 1
-			for x in [x1 .. x2 - 1] by 1
+		for y in [y1 .. y2] by 1
+			for x in [x1 .. x2] by 1
 				ret.grid[y][x].v = val
 		# An actual change, so check to see if we've completed the game
 		if not ret.completed
@@ -352,7 +348,7 @@ interpret_move = (state, ui, ds, x, y, button) ->
 					break
 		ui.dragging = false
 		if move_needed
-			[ui.state, x1, y1, x2 - x1 + 1, y2 - y1 + 1]
+			[ui.state, x1, y1, x2, y2]
 		else
 			null
 	else if IS_CURSOR_MOVE(button)
@@ -388,7 +384,7 @@ interpret_move = (state, ui, ds, x, y, button) ->
 						GRID_EMPTY
 					else
 						GRID_UNKNOWN
-			[newstate, ui.cur_x, ui.cur_y, 1, 1]
+			[newstate, ui.cur_x, ui.cur_y]
 	else
 		null
 
