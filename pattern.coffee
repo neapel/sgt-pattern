@@ -1,13 +1,14 @@
 Math.seedrandom('foo')
 
+COL_BG = '#e3e0b1'
 COL_TEXT = '#000'
 COL_EMPTY = '#fff'
-COL_UNKNOWN = '#aaa'
-COL_FULL = '#000'
-COL_GRID = '#000'
+COL_UNKNOWN = '#9e9b7d'
+COL_FULL = '#38372c'
+COL_GRID = '#6b6955'
 ALPHA_GRID = 0.2
 
-COL_CURSOR = 'yellow'
+COL_CURSOR = '#b1b4e3'
 
 GRID_UNKNOWN = 2
 GRID_FULL = 1
@@ -464,6 +465,8 @@ class game_drawstate
 		# Draw everything.
 		for y in [0 .. state.h - 1]
 			for x in [0 .. state.w - 1]
+				@dr.save()
+				@dr.translate(x * @TILE_SIZE, y * @TILE_SIZE)
 				# Work out what state this square should be drawn in,
 				# taking any current drag operation into account.
 				val =
@@ -475,33 +478,48 @@ class game_drawstate
 				yt = +(0|(y % 5) == 0)
 				xr = +(0|(x % 5) == 4 or x == state.w - 1)
 				yb = +(0|(y % 5) == 4 or y == state.h - 1)
-				dx = x * @TILE_SIZE + 1 + xl
-				dy = y * @TILE_SIZE + 1 + yt
+				dx =  1 + xl
+				dy = 1 + yt
+				@dr.translate(dx, dy)
 				dw = @TILE_SIZE - xl - xr - 1
 				dh = @TILE_SIZE - yt - yb - 1
-				@dr.fillStyle =
-					if val == GRID_FULL
-						COL_FULL
-					else if val == GRID_EMPTY
-						COL_EMPTY
-					else
-						COL_UNKNOWN
-				@dr.fillRect(dx, dy, dw, dh)
-				@dr.save()
-				@dr.globalAlpha = ALPHA_GRID
 				@dr.strokeStyle = COL_GRID
-				@dr.lineWidth = 1
-				@dr.strokeRect(dx + 0.5, dy + 0.5, dw - 1, dh - 1)
-				@dr.restore()
+				@dr.strokeRect(-1 + 0.5, -1+0.5, dw + 1, dh + 1)
+				switch val
+					when GRID_FULL
+						@dr.fillStyle = COL_FULL
+						@dr.fillRect(0, 0, dw, dh)
+					when GRID_UNKNOWN
+						@dr.fillStyle = COL_UNKNOWN
+						@dr.fillRect(0, 0, dw, dh)
+					when GRID_EMPTY
+						@dr.fillStyle = COL_EMPTY
+						@dr.fillRect(0, 0, dw, dh)
+						@dr.strokeStyle = COL_GRID
+						@dr.beginPath()
+						@dr.save()
+						@dr.translate(0.5, 0.5)
+						m = @TILE_SIZE/6
+						@dr.moveTo(m/2, m/2)
+						@dr.lineTo(@TILE_SIZE - m, @TILE_SIZE - m)
+						@dr.moveTo(m/2, @TILE_SIZE - m)
+						@dr.lineTo(@TILE_SIZE - m, m/2)
+						@dr.stroke()
+						@dr.restore()
 				if x == cx and y == cy
-					@dr.fillStyle = COL_CURSOR
 					@dr.beginPath()
-					@dr.arc(dx + @TILE_SIZE/2 - 0.5, dy + @TILE_SIZE/2 - 0.5, @TILE_SIZE * 0.2, 0, Math.PI * 2, false)
-					@dr.fill()
+					@dr.arc(dw/2, dw/2, @TILE_SIZE * 0.25, 0, Math.PI * 2, false)
+					@dr.strokeStyle = COL_CURSOR
+					@dr.lineWidth = 2
+					@dr.stroke()
+
+				@dr.restore()
+
 		@dr.restore()
 
 window.onload = ->
 	canvas = document.createElement 'canvas'
+	document.body.style.background = COL_BG
 	document.body.appendChild canvas
 	canvas.width = 500
 	canvas.height = 500
