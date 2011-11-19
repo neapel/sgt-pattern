@@ -1,5 +1,3 @@
-Math.seedrandom('foo')
-
 COL_TEXT = '#000'
 COL_EMPTY = '#fff'
 COL_UNKNOWN = '#9e9b7d'
