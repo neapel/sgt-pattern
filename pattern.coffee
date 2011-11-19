@@ -1,6 +1,5 @@
 Math.seedrandom('foo')
 
-COL_BG = '#e3e0b1'
 COL_TEXT = '#000'
 COL_EMPTY = '#fff'
 COL_UNKNOWN = '#9e9b7d'
@@ -82,13 +81,13 @@ class GameState
 		if not ret.completed
 			ret.completed = true
 			for x in [0 .. ret.w - 1]
-				rowdata = compute_rowdata(ret.grid.column(x))
-				if not rowdata? or not ret.rowdata[x].equals(rowdata)
+				coldata = compute_rowdata(ret.grid.column(x))
+				if not ret.coldata[x].equals(coldata)
 					ret.completed = false
 					break
 			for y in [0 .. ret.h - 1]
 				rowdata = compute_rowdata(ret.grid[y])
-				if not rowdata? or not ret.rowdata[y + ret.w].equals(rowdata)
+				if not ret.rowdata[y].equals(rowdata)
 					ret.completed = false
 					break
 		ret
@@ -269,12 +268,9 @@ generate_soluble = (w, h) ->
 		while done_any
 			done_any = false
 			for y in [0 .. h - 1]
-				rowdata = compute_rowdata(grid[y])
-				done_any |= do_row(matrix[y], rowdata)
+				done_any |= do_row(matrix[y], compute_rowdata(grid[y]))
 			for x in [0 .. w - 1]
-				rowdata = compute_rowdata(grid.column(x))
-				done_any |= do_row(matrix.column(x), rowdata)
-		console.log matrix, grid
+				done_any |= do_row(matrix.column(x), compute_rowdata(grid.column(x)))
 		ok = true
 		for row in matrix
 			for cell in row
@@ -399,8 +395,8 @@ class game_drawstate
 
 	cell_at: (mx, my) ->
 		[
-			0|((mx - @tile_size/2) / @tile_size) - @offset_x
-			0|((my - @tile_size/2) / @tile_size) - @offset_y
+			0|((mx - @center_x) / @tile_size) - @offset_x
+			0|((my) / @tile_size) - @offset_y
 		]
 
 	game_redraw: (state, ui) ->
@@ -410,17 +406,20 @@ class game_drawstate
 		longest_rowdata = 0
 		for y in [0 .. state.h - 1]
 			longest_rowdata = Math.max(longest_rowdata, state.rowdata[y].length)
-		@offset_x = longest_rowdata
-		@offset_y = longest_coldata
-		total_w = longest_rowdata + state.w
-		total_h = longest_coldata + state.h
-		@tile_size = Math.min(
+		total_w = 2 * longest_rowdata + state.w
+		total_h = 2 * longest_coldata + state.h
+		@tile_size = Math.min(40, Math.min(
 			0|(@dr.canvas.width / total_w),
 			0|(@dr.canvas.height / total_h)
-		)
+		))
+		@offset_x = longest_rowdata
+		@offset_y = longest_coldata
+		@center_x = 0|((@dr.canvas.width - total_w * @tile_size) / 2)
+
+
 		@dr.canvas.width = @dr.canvas.width
 		@dr.save()
-		@dr.translate(@offset_x * @tile_size, @offset_y * @tile_size)
+		@dr.translate(@offset_x * @tile_size + @center_x, @offset_y * @tile_size)
 		# Draw the numbers.
 		@dr.fillStyle = COL_TEXT
 		@dr.font = "bold #{@tile_size/2}px sans-serif"
@@ -506,30 +505,63 @@ class game_drawstate
 		@dr.restore()
 
 window.onload = ->
-	canvas = document.createElement 'canvas'
-	document.body.style.background = COL_BG
-	document.body.appendChild canvas
-	canvas.width = 500
-	canvas.height = 500
+	canvas = document.getElementById 'game'
+	canvas.style.display = 'block'
+	canvas.width = window.innerWidth
+	canvas.height = window.innerHeight
 	ctx = canvas.getContext '2d'
-
-	states = [new GameState(15, 10)]
-	current_state = 0
-
 	ui = new game_ui()
 	ds = new game_drawstate(ctx)
+	console.log canvas, ctx, ui, ds
+
+	setup = document.getElementById 'setup'
+	setup_width = document.getElementById 'width'
+	setup_height = document.getElementById 'height'
+	play_button = document.getElementById 'play'
+	won = document.getElementById 'won'
+	again_button = document.getElementById 'again'
+	fail = document.getElementById 'fail'
+	fail.style.display = 'none'
+
+	again_button.onclick = ->
+		won.style.display = 'none'
+		setup.style.display = 'block'
+
+	setup.style.display = 'block'
+
+	states = []
+	current_state = 0
 
 	draw = ->
-		ds.game_redraw(states[current_state], ui)
+		console.log 'draw', current_state, states
+		if 0 <= current_state < states.length
+			console.log 'draw'
+			ds.game_redraw(states[current_state], ui)
+
+	start_game = ->
+		w = 0| +setup_width.value
+		h = 0| +setup_height.value
+		if 2 <= w <= 50 and 2 <= h <= 50
+			states = [new GameState(w, h)]
+			current_state = 0
+			draw()
+
+	play_button.onclick = ->
+		start_game()
+		setup.style.display = 'none'
 
 	make_move = (button, x, y) ->
-		mov = interpret_move(states[current_state], ui, ds, x, y, button)
-		if mov
-			new_state = states[current_state].execute_move(mov...)
-			states = states[..current_state]
-			states.push(new_state)
-			current_state++
-		draw()
+		if 0 <= current_state < states.length and not states[current_state].completed
+			mov = interpret_move(states[current_state], ui, ds, x, y, button)
+			if mov
+				new_state = states[current_state].execute_move(mov...)
+				states = states[..current_state]
+				states.push(new_state)
+				current_state++
+			draw()
+			if states[current_state].completed
+				won.style.display = 'block'
+		console.log states
 
 	undo_move = ->
 		if current_state > 0
@@ -614,7 +646,6 @@ window.onload = ->
 
 	window.onmouseup = ->
 		mouse_is_down = false
-		console.log 'up'
 		handle_mouseup()
 
 	canvas.onmousemove = (event) ->
@@ -629,5 +660,10 @@ window.onload = ->
 					make_move(MIDDLE_DRAG, x, y)
 				when 2
 					make_move(RIGHT_DRAG, x, y)
+
+	window.onresize = (event) ->
+		canvas.width = window.innerWidth
+		canvas.height = window.innerHeight
+		draw()
 
 	draw()

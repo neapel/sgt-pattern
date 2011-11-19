@@ -6,7 +6,18 @@
 		<script src='seedrandom.js'></script>
 		<script src='libc.js'></script>
 		<script src='pattern.js'></script>
+		<link rel='stylesheet' href='style.css' />
 	</head>
 	<body>
+		<canvas id='game'></canvas>
+		<div id='setup'>
+			<p>So. You have a <input id='width' type='number' min='2' max='50' value='10' size='2' /> by <input id='height' type='number' min='2' max='50' value='10' size='2' /> grid. By clicking (and dragging) with the left, middle, and right mouse button you can colour the cells black, uncertain, and white. The numbers in the margin tell you how many consecutive black cells there are in each row or column. Between two runs of black cells, there has to be at least on white cell. <button id='play'>Go ahead</button> and colour all cells white or black.</p>
+		</div>
+		<div id='won'>
+			<p>Sweet. <button id='again'>Play again?</button></p>
+		</div>
+		<div id='fail'>
+			<p>Sorry but this game requires scripting and an HTML5 capable browser.</p>
+		</div>
 	</body>
 </html>
