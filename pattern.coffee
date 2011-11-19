@@ -1,7 +1,5 @@
 Math.seedrandom('foo')
 
-COL_BACKGROUND = '#eee'
-
 COL_TEXT = '#000'
 COL_EMPTY = '#fff'
 COL_UNKNOWN = '#aaa'
@@ -11,14 +9,14 @@ ALPHA_GRID = 0.2
 
 COL_CURSOR = 'yellow'
 
-UNKNOWN = 0
-BLOCK = 1
-DOT = 2
-STILL_UNKNOWN = 3
-
 GRID_UNKNOWN = 2
 GRID_FULL = 1
 GRID_EMPTY = 0
+
+UNKNOWN = 0
+BLOCK = GRID_FULL
+DOT = GRID_UNKNOWN
+STILL_UNKNOWN = UNKNOWN | BLOCK | DOT
 
 
 
@@ -51,7 +49,7 @@ IS_CURSOR_SELECT = (m) ->
 
 
 class Cell
-	constructor: (@v) ->
+	constructor: (@v = UNKNOWN) ->
 		null
 	clone: ->
 		new Cell(@v)
@@ -215,7 +213,7 @@ do_row = (start, data) ->
 	# Things we have deduced so far.
 	deduced = (0 for x in start)
 	# The row to be operated on: initially empty
-	row = (0 for x in start)
+	row = (UNKNOWN for x in start)
 	# Recursive function
 	do_recurse = (freespace, ndone = 0, lowest = 0) ->
 		run_length = data[ndone]
@@ -247,7 +245,7 @@ do_row = (start, data) ->
 	# Deduce things from this
 	done_any = false
 	for i in [0 .. start.length - 1]
-		if deduced[i] and deduced[i] != STILL_UNKNOWN and not start[i].v
+		if (deduced[i] == BLOCK or deduced[i] == DOT) and not start[i].v
 			start[i].v = deduced[i]
 			done_any = true
 	done_any
@@ -280,7 +278,7 @@ generate_soluble = (w, h) ->
 		matrix =
 			for row in grid
 				for cell in row
-					new Cell(0)
+					new Cell()
 		done_any = true
 		while done_any
 			done_any = false
