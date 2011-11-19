@@ -8,18 +8,9 @@ COL_FULL = '#38372c'
 COL_GRID = '#6b6955'
 ALPHA_GRID = 0.2
 
-COL_CURSOR = '#b1b4e3'
-
 GRID_UNKNOWN = 2
 GRID_FULL = 1
 GRID_EMPTY = 0
-
-UNKNOWN = 0
-BLOCK = GRID_FULL
-DOT = GRID_UNKNOWN
-STILL_UNKNOWN = UNKNOWN | BLOCK | DOT
-
-
 
 LEFT_BUTTON = 1
 MIDDLE_BUTTON = 2
@@ -50,7 +41,7 @@ IS_CURSOR_SELECT = (m) ->
 
 
 class Cell
-	constructor: (@v = UNKNOWN) ->
+	constructor: (@v = GRID_EMPTY) ->
 		null
 	clone: ->
 		new Cell(@v)
@@ -212,7 +203,7 @@ do_row = (start, data) ->
 	# Things we have deduced so far.
 	deduced = (0 for x in start)
 	# The row to be operated on: initially empty
-	row = (UNKNOWN for x in start)
+	row = (GRID_EMPTY for x in start)
 	# Recursive function
 	do_recurse = (freespace, ndone = 0, lowest = 0) ->
 		run_length = data[ndone]
@@ -220,15 +211,15 @@ do_row = (start, data) ->
 			for i in [0 .. freespace]
 				j = lowest
 				for k in [0 .. i - 1] by 1
-					row[j++] = DOT
+					row[j++] = GRID_UNKNOWN
 				for k in [0 .. run_length - 1] by 1
-					row[j++] = BLOCK
+					row[j++] = GRID_FULL
 				if j < row.length
-					row[j++] = DOT
+					row[j++] = GRID_UNKNOWN
 				do_recurse(freespace - i, ndone + 1, j)
 		else
 			for i in [lowest .. row.length - 1] by 1
-				row[i] = DOT
+				row[i] = GRID_UNKNOWN
 			for i in [0 .. row.length - 1]
 				if start[i].v and start[i].v != row[i]
 					return
@@ -244,7 +235,7 @@ do_row = (start, data) ->
 	# Deduce things from this
 	done_any = false
 	for i in [0 .. start.length - 1]
-		if (deduced[i] == BLOCK or deduced[i] == DOT) and not start[i].v
+		if (deduced[i] == GRID_FULL or deduced[i] == GRID_UNKNOWN) and not start[i].v
 			start[i].v = deduced[i]
 			done_any = true
 	done_any
@@ -291,7 +282,7 @@ generate_soluble = (w, h) ->
 		ok = true
 		for row in matrix
 			for cell in row
-				if cell.v == UNKNOWN
+				if cell.v == GRID_EMPTY
 					ok = false
 	grid
 
@@ -412,8 +403,8 @@ class game_drawstate
 
 	cell_at: (mx, my) ->
 		[
-			0|((mx - @TILE_SIZE/2) / @TILE_SIZE) - @offset_x
-			0|((my - @TILE_SIZE/2) / @TILE_SIZE) - @offset_y
+			0|((mx - @tile_size/2) / @tile_size) - @offset_x
+			0|((my - @tile_size/2) / @tile_size) - @offset_y
 		]
 
 	game_redraw: (state, ui) ->
@@ -427,29 +418,28 @@ class game_drawstate
 		@offset_y = longest_coldata
 		total_w = longest_rowdata + state.w
 		total_h = longest_coldata + state.h
-		@TILE_SIZE = Math.min(
+		@tile_size = Math.min(
 			0|(@dr.canvas.width / total_w),
 			0|(@dr.canvas.height / total_h)
 		)
-
 		@dr.canvas.width = @dr.canvas.width
 		@dr.save()
-		@dr.translate(@offset_x * @TILE_SIZE, @offset_y * @TILE_SIZE)
+		@dr.translate(@offset_x * @tile_size, @offset_y * @tile_size)
 		# Draw the numbers.
 		@dr.fillStyle = COL_TEXT
-		@dr.font = "bold #{@TILE_SIZE/2}px sans-serif"
+		@dr.font = "bold #{@tile_size/2}px sans-serif"
 		@dr.textAlign = 'center'
 		@dr.textBaseline = 'middle'
-		for rowdata, i in state.coldata
-			for run_length, j in rowdata
-				x = (i ) * @TILE_SIZE
-				y = (j - rowdata.length) * @TILE_SIZE
-				@dr.fillText("#{run_length}", x + @TILE_SIZE/2, y + @TILE_SIZE/2)
-		for rowdata, i in state.rowdata
-			for run_length, j in rowdata
-				x = (j - rowdata.length) * @TILE_SIZE
-				y = i * @TILE_SIZE
-				@dr.fillText("#{run_length}", x + @TILE_SIZE/2, y + @TILE_SIZE/2)
+		for cols, i in state.coldata
+			for run_length, j in cols
+				x = (i ) * @tile_size
+				y = (j - cols.length) * @tile_size
+				@dr.fillText("#{run_length}", x + @tile_size/2, y + @tile_size/2)
+		for rows, i in state.rowdata
+			for run_length, j in rows
+				x = (j - rows.length) * @tile_size
+				y = i * @tile_size
+				@dr.fillText("#{run_length}", x + @tile_size/2, y + @tile_size/2)
 		# Dynamic things
 		if ui.dragging
 			x1 = Math.min(ui.drag_start_x, ui.drag_end_x)
@@ -465,7 +455,7 @@ class game_drawstate
 		for y in [0 .. state.h - 1]
 			for x in [0 .. state.w - 1]
 				@dr.save()
-				@dr.translate(x * @TILE_SIZE, y * @TILE_SIZE)
+				@dr.translate(x * @tile_size, y * @tile_size)
 				# Work out what state this square should be drawn in,
 				# taking any current drag operation into account.
 				val =
@@ -480,8 +470,8 @@ class game_drawstate
 				dx =  1 + xl
 				dy = 1 + yt
 				@dr.translate(dx, dy)
-				dw = @TILE_SIZE - xl - xr - 1
-				dh = @TILE_SIZE - yt - yb - 1
+				dw = @tile_size - xl - xr - 1
+				dh = @tile_size - yt - yb - 1
 				@dr.strokeStyle = COL_GRID
 				@dr.strokeRect(-1 + 0.5, -1+0.5, dw + 1, dh + 1)
 				switch val
@@ -498,16 +488,16 @@ class game_drawstate
 						@dr.beginPath()
 						@dr.save()
 						@dr.translate(0.5, 0.5)
-						m = @TILE_SIZE/6
+						m = @tile_size/6
 						@dr.moveTo(m/2, m/2)
-						@dr.lineTo(@TILE_SIZE - m, @TILE_SIZE - m)
-						@dr.moveTo(m/2, @TILE_SIZE - m)
-						@dr.lineTo(@TILE_SIZE - m, m/2)
+						@dr.lineTo(@tile_size - m, @tile_size - m)
+						@dr.moveTo(m/2, @tile_size - m)
+						@dr.lineTo(@tile_size - m, m/2)
 						@dr.stroke()
 						@dr.restore()
 				if x == cx and y == cy
 					@dr.beginPath()
-					@dr.arc(dw/2, dw/2, @TILE_SIZE * 0.25, 0, Math.PI * 2, false)
+					@dr.arc(dw/2, dw/2, @tile_size * 0.25, 0, Math.PI * 2, false)
 					@dr.strokeStyle = '#000'
 					@dr.lineWidth = 2.5
 					@dr.stroke()
