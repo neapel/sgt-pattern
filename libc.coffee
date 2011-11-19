@@ -50,6 +50,15 @@ Array::column = (x) ->
 	for row in this
 		row[x]
 
+# Return true if all elements equal
+Array::equals = (other) ->
+	return false if not other?
+	return false if other.length != @length
+	for e, i in this
+		if e != other[i]
+			return false
+	true
+
 point_angle = (ox, oy, dx, dy) ->
 	xdiff = Math.abs(ox - dx)
 	ydiff = Math.abs(oy - dy)

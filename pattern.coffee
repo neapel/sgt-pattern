@@ -4,8 +4,8 @@ COL_BACKGROUND = '#eee'
 COL_EMPTY = '#fff'
 COL_FULL = '#000'
 COL_TEXT = '#000'
-COL_UNKNOWN = '#dce'
-COL_GRID = '#ccc'
+COL_UNKNOWN = '#ccc'
+COL_GRID = '#888'
 COL_CURSOR = 'yellow'
 
 UNKNOWN = 0
@@ -19,49 +19,81 @@ GRID_EMPTY = 0
 
 PREFERRED_TILE_SIZE = 24
 TILE_SIZE = 20
-BORDER = 3 * TILE_SIZE / 4
-TLBORDER = (d) -> d / 5 + 2
-GUTTER = TILE_SIZE / 2
+BORDER = 0|(3 * TILE_SIZE / 4)
+TLBORDER = (d) -> 0|(d / 5 + 2)
+GUTTER = 0|(TILE_SIZE / 2)
 FROMCOORD = (d, x) -> 
-	(x - (BORDER + GUTTER + TILE_SIZE * TLBORDER(d))) / TILE_SIZE
+	0|((x - (BORDER + GUTTER + TILE_SIZE/2 + TILE_SIZE * TLBORDER(d))) / TILE_SIZE)
 SIZE = (d) ->
 	2 * BORDER + GUTTER + TILE_SIZE * (TLBORDER(d) + d)
 GETTILESIZE = (d, w) ->
-	w / (2.0 + TLBORDER(d) + d)
+	0|(w / (2.0 + TLBORDER(d) + d))
 TOCOORD = (d, x) ->
 	BORDER + GUTTER + TILE_SIZE * (TLBORDER(d) + x)
 
-class GameParams
-	constructor: (@w, @h) ->
-		if @w <= 0 or @h <= 0
-			throw 'Width and height must both be greater than zero'
+
+LEFT_BUTTON = 1
+MIDDLE_BUTTON = 2
+RIGHT_BUTTON = 3
+LEFT_DRAG = 4
+MIDDLE_DRAG = 5
+RIGHT_DRAG = 6
+LEFT_RELEASE = 7
+MIDDLE_RELEASE = 8
+RIGHT_RELEASE = 9
+CURSOR_UP = 10
+CURSOR_DOWN = 11
+CURSOR_LEFT = 12
+CURSOR_RIGHT = 13
+CURSOR_SELECT = 14
+CURSOR_SELECT2 = 15
+
+IS_MOUSE_DOWN = (m) ->
+	m - LEFT_BUTTON <= RIGHT_BUTTON - LEFT_BUTTON
+IS_MOUSE_DRAG = (m) ->
+	m - LEFT_DRAG <= RIGHT_DRAG - LEFT_DRAG
+IS_MOUSE_RELEASE = (m) ->
+	m - LEFT_RELEASE <= RIGHT_RELEASE - LEFT_RELEASE
+IS_CURSOR_MOVE = (m) ->
+	m == CURSOR_UP || m == CURSOR_DOWN || m == CURSOR_RIGHT || m == CURSOR_LEFT
+IS_CURSOR_SELECT = (m) ->
+	m == CURSOR_SELECT || m == CURSOR_SELECT2
+
 
 class Cell
 	constructor: (@v) ->
 		null
+	clone: ->
+		new Cell(@v)
 
-class game_state
-	constructor: (params) ->
-		@w = params.w
-		@h = params.h
+class GameState
+	constructor: (@w, @h, generate = true) ->
+		if @w <= 0 or @h <= 0
+			throw 'Width and height must both be greater than zero'
 		@grid =
 			for y in [0 .. @h - 1]
 				for x in [0 .. @w - 1]
 					new Cell(GRID_UNKNOWN)
 		@completed = false
-		@cheated = false
-		#
-		@grid = solution_grid = generate_soluble(@w, @h)
-		console.log 'solution', solution_grid
-		@rowdata = []
-		for x in [0 .. params.w - 1]
-			@rowdata.push( compute_rowdata(solution_grid.column(x)) )
-		for y in [0 .. params.h - 1]
-			@rowdata.push( compute_rowdata(solution_grid[y]) )
-		console.log 'rowdatas:', @rowdata
+		if generate
+			solution_grid = generate_soluble(@w, @h)
+			@rowdata = []
+			for x in [0 .. @w - 1]
+				@rowdata.push( compute_rowdata(solution_grid.column(x)) )
+			for y in [0 .. @h - 1]
+				@rowdata.push( compute_rowdata(solution_grid[y]) )
 
 	clone: ->
-		throw 'TODO'
+		r = new GameState(@w, @h, false)
+		r.grid =
+			for row in @grid
+				for cell in row
+					cell.clone()
+		r.completed = @completed
+		r.rowdata =
+			for d in @rowdata
+				d
+		r
 
 # ----------------------------------------------------------------------
 # Puzzle generation code.
@@ -159,7 +191,7 @@ compute_rowdata = (run) ->
 					ret.push(current)
 					current = 0
 			when GRID_UNKNOWN
-				throw 'unknown'
+				return null
 	if current > 0
 		ret.push(current)
 	ret
@@ -299,7 +331,7 @@ interpret_move = (state, ui, ds, x, y, button) ->
 			ui.release = MIDDLE_RELEASE
 			ui.state = GRID_UNKNOWN
 		ui.drag_start_x = ui.drag_end_x = x
-		ui.drag_start_y = ui.drag_end_y = x
+		ui.drag_start_y = ui.drag_end_y = y
 		ui.cur_visible = false
 		null
 	else if ui.dragging and button == ui.drag
@@ -343,13 +375,13 @@ interpret_move = (state, ui, ds, x, y, button) ->
 		ui.cur_visible = true
 		switch button
 			when CURSOR_UP
-				ui.cur_y = (ui.cur_y - 1 + state.h) % state.h
+				ui.cur_y = 0|((ui.cur_y - 1 + state.h) % state.h)
 			when CURSOR_DOWN
-				ui.cur_y = (ui.cur_y + 1) % state.h
+				ui.cur_y = 0|((ui.cur_y + 1) % state.h)
 			when CURSOR_LEFT
-				ui.cur_x = (ui.cur_x - 1 + state.w) % state.w
+				ui.cur_x = 0|((ui.cur_x - 1 + state.w) % state.w)
 			when CURSOR_RIGHT
-				ui.cur_x = (ui.cur_x + 1) % state.w
+				ui.cur_x = 0|((ui.cur_x + 1) % state.w)
 		null
 	else if IS_CURSOR_SELECT(button)
 		currstate = state.grid[ui.cur_y][ui.cur_x]
@@ -385,18 +417,18 @@ execute_move = (from, move) ->
 	ret = from.clone()
 	for y in [y1 .. y2 - 1] by 1
 		for x in [x1 .. x2 - 1] by 1
-			ret.grid[yy][xx] = val
+			ret.grid[y][x].v = val
 	# An actual change, so check to see if we've completed the game
 	if not ret.completed
 		ret.completed = true
 		for x in [0 .. ret.w - 1]
-			rowdata = compute_rowdata(ret.grid.column(i))
-			if not ret.rowdata[i].equals(rowdata)
+			rowdata = compute_rowdata(ret.grid.column(x))
+			if not rowdata? or not ret.rowdata[x].equals(rowdata)
 				ret.completed = false
 				break
 		for y in [0 .. ret.h - 1]
-			rowdata = compute_rowdata(ret.grid[i])
-			if not ret.rowdata[i + ret.w].equals(rowdata)
+			rowdata = compute_rowdata(ret.grid[y])
+			if not rowdata? or not ret.rowdata[y + ret.w].equals(rowdata)
 				ret.completed = false
 				break
 	ret
@@ -482,16 +514,118 @@ game_redraw = (dr, ds, state, ui) ->
 	ds.cur_x = cx
 	ds.cur_y = cy
 
-window.onclick = ->
+window.onload = ->
 	canvas = document.createElement 'canvas'
 	document.body.appendChild canvas
 	canvas.width = 300
 	canvas.height = 300
 	ctx = canvas.getContext '2d'
 
-	params = new GameParams(5, 5)
-	state = new game_state(params)
-	ui = new game_ui()
-	ds = new game_drawstate(state)
-	game_redraw(ctx, ds, state, ui)
+	states = [new GameState(5, 5)]
+	current_state = 0
 
+	ui = new game_ui()
+	ds = new game_drawstate(states[current_state])
+
+	draw = ->
+		game_redraw(ctx, ds, states[current_state], ui)
+
+	make_move = (button, x, y) ->
+		mov = interpret_move(states[current_state], ui, ds, x, y, button)
+		if mov
+			new_state = execute_move(states[current_state], mov)
+			states = states[..current_state]
+			states.push(new_state)
+			current_state++
+		draw()
+
+	undo_move = ->
+		if current_state > 0
+			current_state--
+			draw()
+			true
+		else
+			false
+
+	redo_move = ->
+		if current_state < states.length - 1
+			current_state++
+			draw()
+			true
+		else
+			false
+
+	window.onkeydown = (event) ->
+		switch event.keyCode
+			when 37, 65 # left, a: move cursor
+				make_move(CURSOR_LEFT)
+				event.preventDefault()
+			when 38, 87 # up, w: move cursor
+				make_move(CURSOR_UP)
+				event.preventDefault()
+			when 39, 68 # right, d: move cursor
+				make_move(CURSOR_RIGHT)
+				event.preventDefault()
+			when 40, 83 # down, s: move cursor
+				make_move(CURSOR_DOWN)
+				event.preventDefault()
+			when 32 # space: forward select
+				make_move(CURSOR_SELECT)
+				event.preventDefault()
+			when 13 # enter: reverse select
+				make_move(CURSOR_SELECT2)
+				event.preventDefault()
+			when 85 # u: undo
+				if undo_move()
+					event.preventDefault()
+			when 82 # r: redo
+				if redo_move()
+					event.preventDefault()
+	
+	canvas.oncontextmenu = (event) ->
+		event.stopImmediatePropagation()
+		event.preventDefault()
+
+	mouse_is_down = false
+	canvas.onmousedown = (event) ->
+		mouse_is_down = true
+		event.stopImmediatePropagation()
+		event.preventDefault()
+		x = event.clientX
+		y = event.clientY
+		switch event.button
+			when 0
+				make_move(LEFT_BUTTON, x, y)
+			when 1
+				make_move(MIDDLE_BUTTON, x, y)
+			when 2
+				make_move(RIGHT_BUTTON, x, y)
+		
+	canvas.onmouseup = (event) ->
+		mouse_is_down = false
+		event.stopImmediatePropagation()
+		event.preventDefault()
+		x = event.clientX
+		y = event.clientY
+		switch event.button
+			when 0
+				make_move(LEFT_RELEASE, x, y)
+			when 1
+				make_move(MIDDLE_RELEASE, x, y)
+			when 2
+				make_move(RIGHT_RELEASE, x, y)
+
+	canvas.onmousemove = (event) ->
+		if mouse_is_down
+			event.preventDefault()
+			x = event.clientX
+			y = event.clientY
+			switch event.button
+				when 0
+					make_move(LEFT_DRAG, x, y)
+				when 1
+					make_move(MIDDLE_DRAG, x, y)
+				when 2
+					make_move(RIGHT_DRAG, x, y)
+
+	draw()
