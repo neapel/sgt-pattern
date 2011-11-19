@@ -510,7 +510,6 @@ window.onload = ->
 	ctx = canvas.getContext '2d'
 	ui = new game_ui()
 	ds = new game_drawstate(ctx)
-	console.log canvas, ctx, ui, ds
 
 	setup = document.getElementById 'setup'
 	setup_width = document.getElementById 'width'
@@ -531,9 +530,7 @@ window.onload = ->
 	current_state = 0
 
 	draw = ->
-		console.log 'draw', current_state, states
 		if 0 <= current_state < states.length
-			console.log 'draw'
 			ds.game_redraw(states[current_state], ui)
 
 	start_game = ->
@@ -559,7 +556,6 @@ window.onload = ->
 			draw()
 			if states[current_state].completed
 				won.style.display = 'block'
-		console.log states
 
 	undo_move = ->
 		if current_state > 0
