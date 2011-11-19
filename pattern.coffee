@@ -379,7 +379,7 @@ interpret_move = (state, ui, ds, x, y, button) ->
 				ui.cur_x = 0|((ui.cur_x + 1) % state.w)
 		null
 	else if IS_CURSOR_SELECT(button)
-		currstate = state.grid[ui.cur_y][ui.cur_x]
+		currstate = state.grid[ui.cur_y][ui.cur_x].v
 		if not ui.cur_visible
 			ui.cur_visible = true
 			null
@@ -509,8 +509,11 @@ class game_drawstate
 				if x == cx and y == cy
 					@dr.beginPath()
 					@dr.arc(dw/2, dw/2, @TILE_SIZE * 0.25, 0, Math.PI * 2, false)
-					@dr.strokeStyle = COL_CURSOR
-					@dr.lineWidth = 2
+					@dr.strokeStyle = '#000'
+					@dr.lineWidth = 2.5
+					@dr.stroke()
+					@dr.strokeStyle = '#fff'
+					@dr.lineWidth = 1.5
 					@dr.stroke()
 
 				@dr.restore()
