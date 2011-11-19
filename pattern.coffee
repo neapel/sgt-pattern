@@ -66,11 +66,10 @@ class GameState
 		@completed = false
 		if generate
 			solution_grid = generate_soluble(@w, @h)
-			@rowdata = []
-			for x in [0 .. @w - 1]
-				@rowdata.push( compute_rowdata(solution_grid.column(x)) )
-			for y in [0 .. @h - 1]
-				@rowdata.push( compute_rowdata(solution_grid[y]) )
+			@coldata = for x in [0 .. @w - 1]
+				compute_rowdata(solution_grid.column(x))
+			@rowdata = for y in [0 .. @h - 1]
+				compute_rowdata(solution_grid[y])
 
 	clone: ->
 		r = new GameState(@w, @h, false)
@@ -79,9 +78,8 @@ class GameState
 				for cell in row
 					cell.clone()
 		r.completed = @completed
-		r.rowdata =
-			for d in @rowdata
-				d
+		r.rowdata = @rowdata
+		r.coldata = @coldata
 		r
 
 	execute_move: (val, x1, y1, x2, y2) ->
@@ -421,10 +419,10 @@ class game_drawstate
 	game_redraw: (state, ui) ->
 		longest_coldata = 0
 		for x in [0 .. state.w - 1]
-			longest_coldata = Math.max(longest_coldata, state.rowdata[x].length)
+			longest_coldata = Math.max(longest_coldata, state.coldata[x].length)
 		longest_rowdata = 0
 		for y in [0 .. state.h - 1]
-			longest_rowdata = Math.max(longest_rowdata, state.rowdata[y + state.w].length)
+			longest_rowdata = Math.max(longest_rowdata, state.rowdata[y].length)
 		@offset_x = longest_rowdata
 		@offset_y = longest_coldata
 		total_w = longest_rowdata + state.w
@@ -438,18 +436,19 @@ class game_drawstate
 		@dr.save()
 		@dr.translate(@offset_x * @TILE_SIZE, @offset_y * @TILE_SIZE)
 		# Draw the numbers.
+		@dr.fillStyle = COL_TEXT
+		@dr.font = "bold #{@TILE_SIZE/2}px sans-serif"
+		@dr.textAlign = 'center'
+		@dr.textBaseline = 'middle'
+		for rowdata, i in state.coldata
+			for run_length, j in rowdata
+				x = (i ) * @TILE_SIZE
+				y = (j - rowdata.length) * @TILE_SIZE
+				@dr.fillText("#{run_length}", x + @TILE_SIZE/2, y + @TILE_SIZE/2)
 		for rowdata, i in state.rowdata
 			for run_length, j in rowdata
-				if i < state.w # col
-					x = (i ) * @TILE_SIZE
-					y = (j - rowdata.length) * @TILE_SIZE
-				else # row
-					x = (j - rowdata.length) * @TILE_SIZE
-					y = (i - state.w) * @TILE_SIZE
-				@dr.fillStyle = COL_TEXT
-				@dr.font = "bold #{@TILE_SIZE/2}px sans-serif"
-				@dr.textAlign = 'center'
-				@dr.textBaseline = 'middle'
+				x = (j - rowdata.length) * @TILE_SIZE
+				y = i * @TILE_SIZE
 				@dr.fillText("#{run_length}", x + @TILE_SIZE/2, y + @TILE_SIZE/2)
 		# Dynamic things
 		if ui.dragging
