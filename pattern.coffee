@@ -502,7 +502,10 @@ class game_drawstate
 
 		@dr.restore()
 
-window.onload = ->
+handle = (e, l, f) ->
+	e.addEventListener(l, f, false)
+
+handle window, 'load', ->
 	canvas = document.getElementById 'game'
 	canvas.style.display = 'block'
 	canvas.width = window.innerWidth
@@ -520,7 +523,7 @@ window.onload = ->
 	fail = document.getElementById 'fail'
 	fail.style.display = 'none'
 
-	again_button.onclick = ->
+	handle again_button, 'click', ->
 		won.style.display = 'none'
 		setup.style.display = 'block'
 
@@ -541,7 +544,7 @@ window.onload = ->
 			current_state = 0
 			draw()
 
-	play_button.onclick = ->
+	handle play_button, 'click', ->
 		start_game()
 		setup.style.display = 'none'
 
@@ -573,7 +576,7 @@ window.onload = ->
 		else
 			false
 
-	window.onkeydown = (event) ->
+	handle window, 'keydown', (event) ->
 		switch event.keyCode
 			when 37, 65 # left, a: move cursor
 				make_move(CURSOR_LEFT)
@@ -600,16 +603,16 @@ window.onload = ->
 				if redo_move()
 					event.preventDefault()
 	
-	canvas.oncontextmenu = (event) ->
-		event.stopImmediatePropagation()
+	handle canvas, 'contextmenu', (event) ->
+		event.stopImmediatePropagation?()
 		event.preventDefault()
 
 	mouse_is_down = false
 	x = y = 0
 
-	canvas.onmousedown = (event) ->
+	handle canvas, 'mousedown', (event) ->
 		mouse_is_down = true
-		event.stopImmediatePropagation()
+		event.stopImmediatePropagation?()
 		event.preventDefault()
 		x = event.clientX
 		y = event.clientY
@@ -621,7 +624,7 @@ window.onload = ->
 			when 2
 				make_move(RIGHT_BUTTON, x, y)
 	
-	handle_mouseup = ->
+	handle_mouseup = (event) ->
 		switch event.button
 			when 0
 				make_move(LEFT_RELEASE, x, y)
@@ -630,19 +633,19 @@ window.onload = ->
 			when 2
 				make_move(RIGHT_RELEASE, x, y)
 
-	canvas.onmouseup = (event) ->
+	handle canvas, 'mouseup', (event) ->
 		mouse_is_down = false
-		event.stopImmediatePropagation()
+		event.stopImmediatePropagation?()
 		event.preventDefault()
 		x = event.clientX
 		y = event.clientY
-		handle_mouseup()
+		handle_mouseup(event)
 
-	window.onmouseup = ->
+	handle window, 'mouseup', (event)->
 		mouse_is_down = false
-		handle_mouseup()
+		handle_mouseup(event)
 
-	canvas.onmousemove = (event) ->
+	handle canvas, 'mousemove', (event) ->
 		if mouse_is_down
 			event.preventDefault()
 			x = event.clientX
@@ -655,7 +658,7 @@ window.onload = ->
 				when 2
 					make_move(RIGHT_DRAG, x, y)
 
-	window.onresize = (event) ->
+	handle window, 'resize', (event) ->
 		canvas.width = window.innerWidth
 		canvas.height = window.innerHeight
 		draw()

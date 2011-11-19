@@ -1,4 +1,4 @@
-var ALPHA_GRID, COL_EMPTY, COL_FULL, COL_GRID, COL_TEXT, COL_UNKNOWN, CURSOR_DOWN, CURSOR_LEFT, CURSOR_RIGHT, CURSOR_SELECT, CURSOR_SELECT2, CURSOR_UP, Cell, GRID_EMPTY, GRID_FULL, GRID_UNKNOWN, GameState, IS_CURSOR_MOVE, IS_CURSOR_SELECT, IS_MOUSE_DOWN, IS_MOUSE_DRAG, IS_MOUSE_RELEASE, LEFT_BUTTON, LEFT_DRAG, LEFT_RELEASE, MIDDLE_BUTTON, MIDDLE_DRAG, MIDDLE_RELEASE, RIGHT_BUTTON, RIGHT_DRAG, RIGHT_RELEASE, compute_rowdata, do_row, game_drawstate, game_ui, generate, generate_soluble, interpret_move;
+var ALPHA_GRID, COL_EMPTY, COL_FULL, COL_GRID, COL_TEXT, COL_UNKNOWN, CURSOR_DOWN, CURSOR_LEFT, CURSOR_RIGHT, CURSOR_SELECT, CURSOR_SELECT2, CURSOR_UP, Cell, GRID_EMPTY, GRID_FULL, GRID_UNKNOWN, GameState, IS_CURSOR_MOVE, IS_CURSOR_SELECT, IS_MOUSE_DOWN, IS_MOUSE_DRAG, IS_MOUSE_RELEASE, LEFT_BUTTON, LEFT_DRAG, LEFT_RELEASE, MIDDLE_BUTTON, MIDDLE_DRAG, MIDDLE_RELEASE, RIGHT_BUTTON, RIGHT_DRAG, RIGHT_RELEASE, compute_rowdata, do_row, game_drawstate, game_ui, generate, generate_soluble, handle, interpret_move;
 COL_TEXT = '#000';
 COL_EMPTY = '#fff';
 COL_UNKNOWN = '#9e9b7d';
@@ -615,7 +615,10 @@ game_drawstate = (function() {
   };
   return game_drawstate;
 })();
-window.onload = function() {
+handle = function(e, l, f) {
+  return e.addEventListener(l, f, false);
+};
+handle(window, 'load', function() {
   var again_button, canvas, ctx, current_state, draw, ds, fail, handle_mouseup, make_move, mouse_is_down, play_button, redo_move, setup, setup_height, setup_width, start_game, states, ui, undo_move, won, x, y;
   canvas = document.getElementById('game');
   canvas.style.display = 'block';
@@ -632,10 +635,10 @@ window.onload = function() {
   again_button = document.getElementById('again');
   fail = document.getElementById('fail');
   fail.style.display = 'none';
-  again_button.onclick = function() {
+  handle(again_button, 'click', function() {
     won.style.display = 'none';
     return setup.style.display = 'block';
-  };
+  });
   setup.style.display = 'block';
   states = [];
   current_state = 0;
@@ -654,10 +657,10 @@ window.onload = function() {
       return draw();
     }
   };
-  play_button.onclick = function() {
+  handle(play_button, 'click', function() {
     start_game();
     return setup.style.display = 'none';
-  };
+  });
   make_move = function(button, x, y) {
     var mov, new_state, _ref;
     if ((0 <= current_state && current_state < states.length) && !states[current_state].completed) {
@@ -692,7 +695,7 @@ window.onload = function() {
       return false;
     }
   };
-  window.onkeydown = function(event) {
+  handle(window, 'keydown', function(event) {
     switch (event.keyCode) {
       case 37:
       case 65:
@@ -726,16 +729,20 @@ window.onload = function() {
           return event.preventDefault();
         }
     }
-  };
-  canvas.oncontextmenu = function(event) {
-    event.stopImmediatePropagation();
+  });
+  handle(canvas, 'contextmenu', function(event) {
+    if (typeof event.stopImmediatePropagation === "function") {
+      event.stopImmediatePropagation();
+    }
     return event.preventDefault();
-  };
+  });
   mouse_is_down = false;
   x = y = 0;
-  canvas.onmousedown = function(event) {
+  handle(canvas, 'mousedown', function(event) {
     mouse_is_down = true;
-    event.stopImmediatePropagation();
+    if (typeof event.stopImmediatePropagation === "function") {
+      event.stopImmediatePropagation();
+    }
     event.preventDefault();
     x = event.clientX;
     y = event.clientY;
@@ -747,8 +754,8 @@ window.onload = function() {
       case 2:
         return make_move(RIGHT_BUTTON, x, y);
     }
-  };
-  handle_mouseup = function() {
+  });
+  handle_mouseup = function(event) {
     switch (event.button) {
       case 0:
         return make_move(LEFT_RELEASE, x, y);
@@ -758,19 +765,21 @@ window.onload = function() {
         return make_move(RIGHT_RELEASE, x, y);
     }
   };
-  canvas.onmouseup = function(event) {
+  handle(canvas, 'mouseup', function(event) {
     mouse_is_down = false;
-    event.stopImmediatePropagation();
+    if (typeof event.stopImmediatePropagation === "function") {
+      event.stopImmediatePropagation();
+    }
     event.preventDefault();
     x = event.clientX;
     y = event.clientY;
-    return handle_mouseup();
-  };
-  window.onmouseup = function() {
+    return handle_mouseup(event);
+  });
+  handle(window, 'mouseup', function(event) {
     mouse_is_down = false;
-    return handle_mouseup();
-  };
-  canvas.onmousemove = function(event) {
+    return handle_mouseup(event);
+  });
+  handle(canvas, 'mousemove', function(event) {
     if (mouse_is_down) {
       event.preventDefault();
       x = event.clientX;
@@ -784,11 +793,11 @@ window.onload = function() {
           return make_move(RIGHT_DRAG, x, y);
       }
     }
-  };
-  window.onresize = function(event) {
+  });
+  handle(window, 'resize', function(event) {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     return draw();
-  };
+  });
   return draw();
-};
+});
