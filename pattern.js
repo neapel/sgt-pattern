@@ -624,7 +624,6 @@ window.onload = function() {
   ctx = canvas.getContext('2d');
   ui = new game_ui();
   ds = new game_drawstate(ctx);
-  console.log(canvas, ctx, ui, ds);
   setup = document.getElementById('setup');
   setup_width = document.getElementById('width');
   setup_height = document.getElementById('height');
@@ -641,9 +640,7 @@ window.onload = function() {
   states = [];
   current_state = 0;
   draw = function() {
-    console.log('draw', current_state, states);
     if ((0 <= current_state && current_state < states.length)) {
-      console.log('draw');
       return ds.game_redraw(states[current_state], ui);
     }
   };
@@ -673,10 +670,9 @@ window.onload = function() {
       }
       draw();
       if (states[current_state].completed) {
-        won.style.display = 'block';
+        return won.style.display = 'block';
       }
     }
-    return console.log(states);
   };
   undo_move = function() {
     if (current_state > 0) {
